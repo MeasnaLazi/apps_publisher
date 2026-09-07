@@ -1,6 +1,6 @@
 {
   "name": "@measnalazi/design-ss",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Design App Store and Play Store screenshot strips as HTML, render them to store-size PNGs, and drive it all from one CLI.",
   "keywords": [
     "app-store",
