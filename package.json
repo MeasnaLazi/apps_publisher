@@ -1,6 +1,6 @@
 {
   "name": "@measnalazi/design-ss",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Design App Store and Play Store screenshot strips as HTML, render them to store-size PNGs, and drive it all from one CLI.",
   "keywords": [
     "app-store",
@@ -28,6 +28,28 @@
   "bin": {
     "design-ss": "bin/design-ss"
   },
+  "files": [
+    "bin/",
+    "cli/",
+    "composer/",
+    "scripts/",
+    "skills/",
+    "docs/",
+    "mask_analysis/",
+    "strip_editor/",
+    "input/README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    "NOTES.md",
+    "CONTRIBUTING.md",
+    "!**/node_modules",
+    "!**/dist",
+    "!**/.DS_Store",
+    "!composer/references/*/",
+    "!strips/**",
+    "!input/*/**"
+  ],
   "publishConfig": {
     "access": "public"
   },
