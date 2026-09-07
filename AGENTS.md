@@ -45,8 +45,8 @@ and `input/` folder name is the only thing that says which target a run is for.
 ## Commands
 
 ```
-cd composer && npm test                          # 4 suites
-cd composer && npm run check                     # strips + frame-pack geometry
+npm test                                         # every suite — cli + composer
+npm run check                                    # strips + frame-pack geometry
 cd strip_editor && npm test && npm run typecheck
 ```
 

@@ -63,7 +63,7 @@ is the reference; the parts that trip people up:
 - **Trust the SVG's `viewBox`, not `frame.json`'s `viewWidth`.** Several packs
   have had stale values. The runtime scales to the viewBox.
 
-Verify with `cd composer && npm run check`, which checks frame-pack geometry
+Verify with `npm run check`, which checks frame-pack geometry
 alongside the strips, and look at the result — `composer/test/pose-test.html`
 renders every pose of a pack with a calibration screen, and a bent grid line is
 a warp that is wrong.
@@ -107,11 +107,12 @@ Three standing constraints, all learned from real failures:
 ### Running everything
 
 ```bash
-cd composer && npm install && npx playwright install chromium
-cd composer && npm test          # 4 suites
-cd composer && npm run check     # strips + frame-pack geometry
+npm install                      # at the root; fetches Chromium too
+npm test                         # every suite — cli + composer
+npm run test:composer            # composer only
+npm run check                    # strips + frame-pack geometry
 
-cd strip_editor && npm install
+cd strip_editor && npm install   # the editor keeps its own package
 cd strip_editor && npm test && npm run typecheck
 cd strip_editor && npm run dev   # http://localhost:4714
 ```

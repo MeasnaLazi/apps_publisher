@@ -8,7 +8,7 @@
 # folder somewhere outside the repo if you want to keep a particular result.
 strips/**
 
-strip_editor/node_modules/
+node_modules/
 strip_editor/package-lock.json
 
 # Vite's production bundle. This project runs as a dev server; `npm run build`

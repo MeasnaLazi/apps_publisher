@@ -1,9 +1,12 @@
-# composer/
+# `composer/` — the renderer, the checker and the frame packs
 
 HTML/CSS strip composer.
 
-Strips are authored as plain HTML (contract: [`strip-schema.md`](strip-schema.md)),
-rendered to export-size PNGs by headless Chromium.
+Strips are authored as plain HTML (contract:
+[`composer/strip-schema.md`](../composer/strip-schema.md)), rendered to
+export-size PNGs by headless Chromium.
+
+File paths in the table below are relative to `composer/`.
 
 | File | Role |
 | --- | --- |
@@ -19,10 +22,11 @@ rendered to export-size PNGs by headless Chromium.
 
 ## Setup
 
+Nothing of its own — `composer/` is a folder of scripts, not a package. The
+dependencies and the test commands live in the repo's root `package.json`.
+
 ```bash
-cd composer
-npm install
-npx playwright install chromium
+npm install          # at the repo root; fetches Chromium too
 ```
 
 ## Render

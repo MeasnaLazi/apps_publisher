@@ -49,18 +49,32 @@ Google's permitted range (320–3840 px per side, at most 2:1).
 | | |
 | --- | --- |
 | **Node 22.x** | the renderer and the editor |
-| **Chromium** | `npx playwright install chromium` — headless export |
+| **Chromium** | headless export — fetched for you on install |
 | **An agent** | anything that reads `AGENTS.md`: Claude Code, Gemini CLI, Codex, Open Code, Co-Pilot, Cursor...etc |
+
+Install it, and `design-ss` is on your path:
+
+```bash
+npm install -g MeasnaLazi/design_ss
+design-ss --version
+```
+
+Or clone it, which is the same thing plus the sources to edit:
 
 ```bash
 git clone https://github.com/MeasnaLazi/design_ss.git
-cd design_ss/composer
-npm install
-npx playwright install chromium
+cd design_ss
+npm install          # add `npm link` if you want the `design-ss` command
 ```
 
-That is everything needed to design and render. The visual editor installs
-separately and only if you want it.
+Either way you get the whole toolkit — composer, frame packs, fonts, the skill —
+and Chromium is fetched for you (~150MB, once).
+`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` skips it, and a failed download never fails
+the install: `check`, `frames` and `retarget --no-render` work without a browser;
+`design` and `render` do not.
+
+Without installing, every command also works as `node bin/design-ss …`. The
+visual editor installs separately and only if you want it.
 
 The agent is the part that designs, so a run costs whatever your agent costs.
 Everything else — rendering, checking, editing — is local and offline.
@@ -223,7 +237,7 @@ alternatives on your fifth.
 | [`skills/strip-design/SKILL.md`](skills/strip-design/SKILL.md) | how a design run works, and the rules learned from real failures |
 | [`skills/strip-design/archetypes.md`](skills/strip-design/archetypes.md) | the design vocabulary — the authority on anything visual |
 | [`docs/cli.md`](docs/cli.md) | the `design-ss` command line: flags, exit codes, cancelling a run |
-| [`composer/README.md`](composer/README.md) | the renderer, the schema checker, and the frame packs |
+| [`docs/composer.md`](docs/composer.md) | the renderer, the schema checker, and the frame packs |
 | [`composer/strip-schema.md`](composer/strip-schema.md) | the markup contract a strip has to satisfy |
 | [`NOTES.md`](NOTES.md) | non-obvious logic, and what breaks if you "fix" it |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | what to contribute — the vocabulary and the frame packs come first |
