@@ -1,0 +1,163 @@
+#!/usr/bin/env node
+/**
+ * design-ss -- one front door for the strip toolkit.
+ *
+ *   design-ss design --target iphone --message "..."   agent, then the gate
+ *   design-ss gate   --target iphone                   the gate alone, no agent
+ *   design-ss check  [files... | --all | --packs]      structural conformance
+ *   design-ss render --target iphone                   strip -> store-size PNGs
+ *   design-ss frames <target> [--list]                 pick a device frame pack
+ *   design-ss stop                                     kill the run this project recorded
+ *
+ * Read from anywhere; write where you are. --input may point at a folder
+ * outside the project (a pinned clone, a read-only mount); everything written
+ * lands under the work root -- the nearest ancestor of the cwd holding
+ * design-ss.config.json or input/, else the cwd itself. There is no --output:
+ * `cd` is the --output flag.
+ *
+ * Data goes to stdout, chatter to stderr, and the exit code is the answer:
+ *   0 ok  1 gate failed  2 usage  3 agent wrote nothing  4 agent failed
+ *   5 NEEDS_INPUT  6 warnings  124 timed out  143 stopped
+ */
+import path from 'node:path'
+import { readFileSync } from 'node:fs'
+import { EXIT } from '../cli/exit-codes.mjs'
+import { run } from '../cli/proc.mjs'
+import { design, gateOnly, stop } from '../cli/design.mjs'
+import { loadConfig } from '../cli/agents.mjs'
+import { resolveRoots, findWorkRoot, TOOLKIT_ROOT } from '../cli/roots.mjs'
+
+const VERSION = JSON.parse(readFileSync(path.join(TOOLKIT_ROOT, 'package.json'), 'utf8')).version
+
+const HELP = `design-ss ${VERSION} -- design, check and render store screenshot strips
+
+USAGE
+  design-ss <command> [options]
+
+COMMANDS
+  design    Run the configured agent against a target, then gate the result
+  gate      Run the gate alone on an existing strip (no agent, no API key)
+  check     composer/check-schema.mjs -- structural conformance, no browser
+  render    composer/render.mjs -- strip HTML to store-size PNGs
+  frames    composer/pick-frame.mjs -- pick or list device frame packs
+  stop      SIGTERM the run recorded in <work root>/.design-ss/run.json
+
+PATHS
+  --input <dir>         where app.md and the captures live
+                        (default: <work root>/input; or DESIGN_SS_INPUT, or
+                        paths.input in your project's design-ss.config.json)
+  Output always goes to <work root>/strips. There is no --output: cd instead.
+  The work root is the nearest ancestor of the cwd holding design-ss.config.json
+  or input/, else the cwd.
+
+DESIGN OPTIONS
+  --target <name>       device target: reads <input>/<name>/, writes strips/<name>/  [required]
+  --message <text>      the operator request handed to the agent                     [required]
+  --agent <name>        claude or stub, or one your project's config adds (default: claude)
+  --timeout <seconds>   deadline for the agent (default: 1800)
+  --max-turns <n>       passed to adapters that support it
+  --no-render           gate with check-schema only; skip the browser
+
+EXIT CODES
+  0   designed, schema clean, rendered, no problems
+  1   gate failed: schema errors, render errors, or an error in problems[]
+  2   usage error, unknown agent, or the agent command could not be started
+  3   the agent exited cleanly and wrote no strip
+  4   the agent process itself failed
+  5   NEEDS_INPUT: the input folder is missing or incomplete
+  6   finished with warnings only -- distinct from 1 so a caller can treat
+      "built, but look at it" differently from "failed"
+  124 the agent hit its deadline and was killed
+  143 stopped from outside: design-ss stop, Ctrl-C, or a caller aborting
+`
+
+function parse(argv) {
+  const out = { _: [] }
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]
+    if (a === '--') { out._.push(...argv.slice(i + 1)); break }
+    if (a.startsWith('--')) {
+      const next = argv[i + 1]
+      if (next === undefined || next.startsWith('--')) out[a.slice(2)] = true
+      else { out[a.slice(2)] = next; i++ }
+    } else out._.push(a)
+  }
+  return out
+}
+
+const die = (msg) => { process.stderr.write(`design-ss: ${msg}\nTry: design-ss --help\n`); process.exit(EXIT.USAGE) }
+const str = (v, name) => { if (!v || v === true) die(`--${name} is required`); return String(v) }
+
+// An unexpected throw should read as one line, not a stack trace: a pipeline
+// only sees the exit code, and a human only reads the last line.
+process.on('unhandledRejection', (err) => {
+  process.stderr.write(`design-ss: ${err?.message ?? err}\n`)
+  process.exit(EXIT.GATE)
+})
+
+const [command, ...rest] = process.argv.slice(2)
+const args = parse(rest)
+
+if (!command || command === '--help' || command === '-h' || command === 'help') {
+  process.stdout.write(HELP); process.exit(command ? EXIT.OK : EXIT.USAGE)
+}
+if (command === '--version' || command === '-v') { process.stdout.write(`${VERSION}\n`); process.exit(EXIT.OK) }
+
+// Order matters: the work root is found first (it depends only on which files
+// exist), then the project's config is read from it, then the config can say
+// where input lives.
+const workRoot = findWorkRoot()
+const config = ['design', 'gate', 'render', 'stop'].includes(command)
+  ? await loadConfig(workRoot)
+  : null
+const roots = resolveRoots({ workRoot, inputFlag: args.input === true ? null : args.input, config })
+
+switch (command) {
+  case 'design': {
+    const d = config.defaults
+    process.exit(await design(roots, {
+      config,
+      target: str(args.target, 'target'),
+      message: str(args.message, 'message'),
+      agentName: String(args.agent || d.agent),
+      timeoutMs: Number(args.timeout || d.timeoutSeconds) * 1000,
+      killGraceMs: Number(d.killGraceSeconds) * 1000,
+      maxTurns: Number(args['max-turns'] || d.maxTurns),
+      skipRender: args['no-render'] === true,
+    }))
+    break
+  }
+
+  case 'gate':
+    process.exit(await gateOnly(roots, { target: str(args.target, 'target'), skipRender: args['no-render'] === true }))
+    break
+
+  case 'render':
+    // --target renders this project's strip; anything else is passed straight
+    // through to the renderer, which still accepts an explicit --strip.
+    if (args.target && args.target !== true) {
+      process.exit(await gateOnly(roots, { target: String(args.target), skipRender: false }))
+    } else {
+      const r = await run('node', [path.join(TOOLKIT_ROOT, 'composer/render.mjs'), ...rest], { cwd: roots.workRoot })
+      process.exit(r.code ?? 1)
+    }
+    break
+
+  case 'stop':
+    process.exit(await stop(roots))
+    break
+
+  // The two remaining tools, unchanged, just given a front door. Their exit
+  // codes are already pipeline-shaped, so they pass straight through.
+  case 'check': {
+    const r = await run('node', [path.join(TOOLKIT_ROOT, 'composer/check-schema.mjs'), ...rest], { cwd: TOOLKIT_ROOT })
+    process.exit(r.code ?? 1)
+  }
+  case 'frames': {
+    const r = await run('node', [path.join(TOOLKIT_ROOT, 'composer/pick-frame.mjs'), ...rest], { cwd: TOOLKIT_ROOT })
+    process.exit(r.code ?? 1)
+  }
+
+  default:
+    die(`unknown command "${command}"`)
+}

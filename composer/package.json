@@ -6,7 +6,7 @@
   "description": "HTML/CSS strip composer: renders store-screenshot strips (HTML) to export-size PNGs via Playwright.",
   "scripts": {
     "render": "node render.mjs",
-    "test": "node test/screen-geometry.test.mjs && node test/inspect.test.mjs && node test/check-schema.test.mjs && node test/pick-frame.test.mjs",
+    "test": "node test/screen-geometry.test.mjs && node test/inspect.test.mjs && node test/check-schema.test.mjs && node test/pick-frame.test.mjs && node test/render-server.test.mjs",
     "check": "node check-schema.mjs --all"
   },
   "dependencies": {

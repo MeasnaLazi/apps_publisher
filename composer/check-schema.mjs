@@ -155,17 +155,30 @@ function* groupChildren(html) {
   }
 }
 
-async function exists(repoRelUrl) {
-  const clean = repoRelUrl.split('?')[0].split('#')[0].replace(/^\/+/, '')
+/**
+ * Root-relative URLs resolve against two different trees, the same two the
+ * renderer serves: /strips/** is the strip's own images/ and screenshots/,
+ * which live wherever the project is, and everything else is the toolkit's.
+ * With no stripsRoot both fall back to the toolkit, which is what a repo-local
+ * run has always done.
+ *
+ * Without this split, a strip designed outside the toolkit reports every one of
+ * its own screenshots as missing — a wall of errors about correct markup.
+ */
+async function exists(rootRelUrl, stripsRoot = null) {
+  const clean = rootRelUrl.split('?')[0].split('#')[0].replace(/^\/+/, '')
+  const abs = stripsRoot && clean.startsWith('strips/')
+    ? path.join(stripsRoot, clean.slice('strips/'.length))
+    : path.join(REPO_ROOT, clean)
   try {
-    await fs.access(path.join(REPO_ROOT, clean))
+    await fs.access(abs)
     return true
   } catch {
     return false
   }
 }
 
-export async function checkStrip(html, label) {
+export async function checkStrip(html, label, { stripsRoot = null } = {}) {
   // Sets, not arrays: one missing screenshot referenced by five panels is one
   // problem to fix, not five lines of noise.
   const errors = new Set()
@@ -343,6 +356,30 @@ export async function checkStrip(html, label) {
       if (distinct.length > 1) {
         E(`a strip uses one frame pack; found ${distinct.length}: ${distinct.join(', ')}`)
       }
+      // A pose must exist in the pack that names it. The catalogue answers
+      // "is this pack real"; only the pack's own frame.json answers "does it
+      // have this view". Getting it wrong is not silent — device-frames.mjs
+      // throws `pose "x" not found in pack "y"` and the export fails — but it
+      // fails *after* a browser launch and a page load, which in a pipeline is
+      // minutes rather than the millisecond a file read costs here.
+      for (const id of distinct) {
+        if (!known.has(id)) continue          // already reported as unknown
+        let available = null
+        try {
+          const raw = await fs.readFile(path.join(REPO_ROOT, 'composer/device-frames', id, 'frame.json'), 'utf8')
+          available = (JSON.parse(raw).frames ?? []).map((f) => f.name).filter(Boolean)
+        } catch {
+          W(`composer/device-frames/${id}/frame.json is unreadable; poses were not checked`)
+        }
+        if (available?.length) {
+          const poses = new Set([...html.matchAll(/\bdata-pose\s*=\s*"([^"]*)"/g)].map((m) => m[1]))
+          for (const pose of poses) {
+            if (!available.includes(pose)) {
+              E(`pose "${pose}" is not in pack "${id}" — it has: ${available.join(', ')}`)
+            }
+          }
+        }
+      }
       // A pack's type must equal the strips/ folder the document lives in. Only
       // checkable when the label is that path — the templates are checked by
       // name, and guessing a target for them would invent an error.
@@ -376,14 +413,14 @@ export async function checkStrip(html, label) {
       return
     }
     if (!url.startsWith('/')) return
-    if (!(await exists(url))) E(`asset not found on disk: ${url}${where}`)
+    if (!(await exists(url, stripsRoot))) E(`asset not found on disk: ${url}${where}`)
   }
   for (const m of html.matchAll(/(?:src|href)\s*=\s*"([^"]+)"/g)) await asset(m[1], '')
   for (const m of html.matchAll(/\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)'"\s]*))\s*\)/g)) {
     await asset(m[1] ?? m[2] ?? m[3] ?? '', ' in CSS url()')
   }
   for (const m of html.matchAll(/\bdata-screenshot\s*=\s*"([^"]+)"/g)) {
-    if (!(await exists(m[1]))) E(`data-screenshot not found on disk: ${m[1]}`)
+    if (!(await exists(m[1], stripsRoot))) E(`data-screenshot not found on disk: ${m[1]}`)
   }
 
   return { label, errors: [...errors], warnings: [...warnings], isStrip: stripCount > 0 }
@@ -559,9 +596,20 @@ async function findStrips() {
 // Only run the CLI when invoked directly. `checkStrip` is imported by
 // strip_editor's contract test, which must not trigger a process.exit.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  const args = process.argv.slice(2)
+  const argv = process.argv.slice(2)
+
+  // --strips-root is pulled out before anything else reads args[0] as a mode.
+  // It names where strip folders live, so that /strips/** in a document resolves
+  // there rather than under the toolkit — the same split render.mjs makes.
+  let stripsRoot = null
+  const args = []
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--strips-root') { stripsRoot = path.resolve(argv[++i] ?? ''); continue }
+    args.push(argv[i])
+  }
+
   if (args.length === 0) {
-    console.error('usage: node composer/check-schema.mjs <file.html> [...] | --all | --packs | --skeleton')
+    console.error('usage: node composer/check-schema.mjs [--strips-root <dir>] <file.html> [...] | --all | --packs | --skeleton')
     process.exit(2)
   }
   
@@ -599,7 +647,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
 
   if (args[0] === '--skeleton') {
     const html = await skeletonFromSchema()
-    report(await checkStrip(html, 'composer/strip-schema.md § Skeleton'), { explicit: true })
+    report(await checkStrip(html, 'composer/strip-schema.md § Skeleton', { stripsRoot }), { explicit: true })
   } else {
     const files = args[0] === '--all' ? await findStrips() : args.map((a) => path.resolve(a))
     for (const file of files) {
@@ -607,7 +655,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
       // Files outside the repo (a scratch copy, say) relativise to a stack
       // of `../` that tells the reader nothing; show those as given.
       const rel = file.startsWith(REPO_ROOT + path.sep) ? path.relative(REPO_ROOT, file) : file
-      report(await checkStrip(html, rel), { explicit: args[0] !== '--all' })
+      report(await checkStrip(html, rel, { stripsRoot }), { explicit: args[0] !== '--all' })
     }
   }
   process.exit(failed ? 1 : 0)

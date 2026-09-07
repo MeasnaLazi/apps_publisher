@@ -11,6 +11,9 @@
  * Run: node composer/test/check-schema.test.mjs
  */
 import assert from 'node:assert/strict'
+import { promises as fsp } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { checkStrip } from '../check-schema.mjs'
 
 const wrap = (panelBody, extra = '') => `<!doctype html><html><head>
@@ -27,8 +30,8 @@ ${extra}
 const TEXT = '<div data-layer="text" data-role="title" style="position:absolute; left:10px; top:10px;">Hi</div>'
 
 let failures = 0
-async function check(label, html, { errors = [], noErrors = [] }) {
-  const res = await checkStrip(html, label)
+async function check(label, html, { errors = [], noErrors = [] }, opts = {}) {
+  const res = await checkStrip(html, label, opts)
   const joined = res.errors.join(' | ')
   const missing = errors.filter((e) => !joined.includes(e))
   const spurious = noErrors.filter((e) => joined.includes(e))
@@ -261,6 +264,23 @@ await check(
   { noErrors: ['unknown frame pack'] },
 )
 
+// The catalogue says a pack exists; only the pack's own frame.json says which
+// views it has. A pose the pack lacks passed the checker and then killed the
+// export with `pose "x" not found in pack "y"` — after a browser launch.
+await check(
+  'a pose the pack does not have is caught',
+  withDevice('iphone_12_pro', `
+    <div data-layer="device" data-device data-pack="iphone_12_pro" data-pose="isometric-left"
+         style="position:absolute; left:0; top:900px; width:900px;"></div>`),
+  { errors: ['pose "isometric-left" is not in pack "iphone_12_pro"'] },
+)
+
+await check(
+  'a pose the pack does have passes',
+  withDevice('iphone_12_pro'),
+  { noErrors: ['is not in pack'] },
+)
+
 await check(
   'two different packs in one strip is an error',
   withDevice('iphone_12_pro', `
@@ -310,6 +330,35 @@ assert.ok(
 )
 assert.ok(!res.errors.some((e) => e.includes('panel 0:')), 'panel 0 is clean and must not be blamed')
 console.log('PASS  the offending panel is named correctly')
+
+// --- /strips/** resolves against the strips root ----------------------------
+// A strip designed outside the toolkit keeps root-relative asset URLs, because
+// they are server paths, not disk paths. Resolving them against the toolkit
+// reported all five screenshots of a real run as missing — correct markup, a
+// wall of errors. render.mjs already splits these two trees; so must this.
+{
+  const stripsRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'dss-check-'))
+  const shot = path.join(stripsRoot, 'iphone', 'screenshots', 'shot.svg')
+  await fsp.mkdir(path.dirname(shot), { recursive: true })
+  await fsp.writeFile(shot, '<svg/>')
+
+  const html = withDevice('iphone_12_pro').replace(
+    'data-pack="iphone_12_pro"',
+    'data-screenshot="/strips/iphone/screenshots/shot.svg" data-fit="cover" data-pack="iphone_12_pro"',
+  )
+
+  await check('a screenshot under the strips root is found', html,
+    { noErrors: ['not found on disk'] }, { stripsRoot })
+
+  await check('without a strips root it resolves against the toolkit, as before', html,
+    { errors: ['not found on disk'] })
+
+  await fsp.rm(shot)
+  await check('a genuinely missing screenshot is still an error', html,
+    { errors: ['not found on disk'] }, { stripsRoot })
+
+  await fsp.rm(stripsRoot, { recursive: true, force: true })
+}
 
 console.log(failures === 0 ? '\nALL PASS' : `\n${failures} FAILURE(S)`)
 process.exit(failures ? 1 : 0)

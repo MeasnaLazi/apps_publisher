@@ -7,8 +7,8 @@ rendered to export-size PNGs by headless Chromium.
 
 | File | Role |
 | --- | --- |
-| `render.mjs` | CLI: strip HTML → per-panel PNGs + `strip-data.json` (measured geometry + `problems`) (`--strip`, `--out`, `--full`). Serves the repo root locally so pages can use `/composer/**`. |
-| `check-schema.mjs` | Structural conformance against `strip-schema.md`, from the source text alone — no browser. `--all`, `--skeleton`, or a file. |
+| `render.mjs` | CLI: strip HTML → per-panel PNGs + `strip-data.json` (measured geometry + `problems`) (`--strip`, `--out`, `--full`, `--strips-root`). Serves two mounts locally: the toolkit at `/` so pages can use `/composer/**`, and the strips root at `/strips/` so a strip's own `images/` and `screenshots/` resolve wherever the project lives. |
+| `check-schema.mjs` | Structural conformance against `strip-schema.md`, from the source text alone — no browser. `--all`, `--skeleton`, or a file. Takes `--strips-root <dir>` so a strip living outside the toolkit has its `/strips/**` assets resolved where they actually are. |
 | `device-frames.mjs` | Browser runtime: builds `[data-device]` blocks — matrix3d homography warp from `frame.json` `corners`, clip via the pose SVG's `#screen` path, frame artwork on top. |
 | `pick-frame.mjs` | CLI: `node composer/pick-frame.mjs <target> [--list]` — one frame pack id for that target, chosen at random from `device-frames/index.json`. Exists because an agent asked to pick at random returns the same one every time. |
 | `homography.mjs` | Shared math (Node + browser): the screen-quad warp used by both the renderer and the editor. |

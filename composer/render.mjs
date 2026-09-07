@@ -11,6 +11,8 @@
  *   --full                    also save the whole strip as strip.png
  *   --scale <n>               deviceScaleFactor (default 1 — panels are authored at export size)
  *   --timeout <ms>            ready-wait timeout (default 30000)
+ *   --strips-root <dir>       where strip folders live (default: <toolkit>/strips).
+ *                             Served at /strips/; the toolkit is served at /.
  *
  * The page is served over a local static file server rooted at the repo root,
  * so strip HTML can reference /composer/** (device frames, the runtime) and
@@ -19,7 +21,7 @@
  * uses composer runtime; otherwise waits for load + fonts.
  */
 import http from 'node:http'
-import { promises as fs } from 'node:fs'
+import { promises as fs, existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
@@ -55,16 +57,30 @@ function parseArgs(argv) {
     else if (a === '--full') args.full = true
     else if (a === '--scale') args.scale = Number(argv[++i])
     else if (a === '--timeout') args.timeout = Number(argv[++i])
+    else if (a === '--strips-root') args.stripsRoot = argv[++i]
     else throw new Error(`unknown flag: ${a}`)
   }
   if (!args.strip) throw new Error('--strip <file.html> is required')
-  // Default the output beside the strip — strips/<name>/rendered/ — so a render
-  // belongs to the design that produced it and is deleted with it.
-  if (!args.out) args.out = path.join(path.dirname(args.strip), 'rendered')
   return args
 }
 
-function startStaticServer(root) {
+/**
+ * Two mounts, not one root.
+ *
+ * A strip references two different trees by root-relative URL: /composer/**
+ * (device frames, fonts, the runtime — always the toolkit) and /strips/**
+ * (its own images/ and screenshots/ — wherever the work root happens to be).
+ * When the toolkit is installed somewhere and pointed at another project those
+ * are different directories, so one static root cannot serve both.
+ *
+ * Strip markup is unchanged by this: /strips/<name>/images/x.png is a server
+ * path, not a disk path, and it keeps resolving.
+ */
+export function startStaticServer({ toolkitRoot, stripsRoot }) {
+  const mounts = [
+    ['/strips/', stripsRoot],
+    ['/', toolkitRoot],
+  ]
   const server = http.createServer(async (req, res) => {
     try {
       let urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname)
@@ -74,8 +90,9 @@ function startStaticServer(root) {
       if (urlPath.startsWith('/web_ui/public/device-frames/')) {
         urlPath = urlPath.replace('/web_ui/public/device-frames/', '/composer/device-frames/')
       }
-      const filePath = path.normalize(path.join(root, urlPath))
-      if (!filePath.startsWith(root)) { res.writeHead(403).end(); return }
+      const [prefix, root] = mounts.find(([m]) => urlPath.startsWith(m))
+      const filePath = path.normalize(path.join(root, urlPath.slice(prefix.length)))
+      if (filePath !== root && !filePath.startsWith(root + path.sep)) { res.writeHead(403).end(); return }
       const data = await fs.readFile(filePath)
       res.writeHead(200, { 'Content-Type': MIME[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream' })
       res.end(data)
@@ -90,20 +107,41 @@ function startStaticServer(root) {
 
 async function main() {
   const args = parseArgs(process.argv)
-  const stripAbs = path.isAbsolute(args.strip) ? args.strip : path.resolve(REPO_ROOT, args.strip)
-  const rel = path.relative(REPO_ROOT, stripAbs)
-  if (rel.startsWith('..')) throw new Error(`strip must live inside the repo root (${REPO_ROOT})`)
-  const outDir = path.isAbsolute(args.out) ? args.out : path.resolve(REPO_ROOT, args.out)
+
+  // A relative --strip is resolved against the cwd first, then the toolkit, so
+  // `node composer/render.mjs --strip strips/x/strip.html` keeps working from
+  // the repo root and from composer/.
+  let stripAbs = path.isAbsolute(args.strip) ? args.strip : path.resolve(process.cwd(), args.strip)
+  if (!existsSync(stripAbs)) stripAbs = path.resolve(REPO_ROOT, args.strip)
+
+  // Where strip folders live. Defaults to the toolkit's own strips/, which is
+  // what a repo-local run has always used.
+  const stripsRoot = args.stripsRoot
+    ? path.resolve(process.cwd(), args.stripsRoot)
+    : path.join(REPO_ROOT, 'strips')
+
+  // Serve the strip from whichever mount contains it.
+  const relStrips = path.relative(stripsRoot, stripAbs)
+  const relToolkit = path.relative(REPO_ROOT, stripAbs)
+  let pageUrl
+  if (!relStrips.startsWith('..')) pageUrl = `/strips/${relStrips.split(path.sep).join('/')}`
+  else if (!relToolkit.startsWith('..')) pageUrl = `/${relToolkit.split(path.sep).join('/')}`
+  else throw new Error(`strip must live inside the strips root (${stripsRoot}) or the toolkit (${REPO_ROOT})`)
+
+  // Default the output beside the strip — <strip folder>/rendered/ — so a
+  // render belongs to the design that produced it and is deleted with it.
+  const out = args.out ?? path.join(path.dirname(stripAbs), 'rendered')
+  const outDir = path.isAbsolute(out) ? out : path.resolve(process.cwd(), out)
   await fs.mkdir(outDir, { recursive: true })
 
-  const { server, port } = await startStaticServer(REPO_ROOT)
+  const { server, port } = await startStaticServer({ toolkitRoot: REPO_ROOT, stripsRoot })
   const browser = await chromium.launch()
   try {
     const page = await browser.newPage({ viewport: { width: 1600, height: 1200 }, deviceScaleFactor: args.scale })
     page.on('console', (msg) => { if (msg.type() === 'error') console.error('[page]', msg.text()) })
     page.on('pageerror', (err) => console.error('[page]', err.message))
 
-    await page.goto(`http://127.0.0.1:${port}/${rel.split(path.sep).join('/')}`, { waitUntil: 'load' })
+    await page.goto(`http://127.0.0.1:${port}${pageUrl}`, { waitUntil: 'load' })
 
     // Wait for composer runtime (if present) and fonts.
     await page.waitForFunction(
@@ -363,7 +401,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(JSON.stringify({ ok: false, error: String(err.message ?? err) }))
-  process.exit(1)
-})
+// Only run when invoked as a command. The static server is exported so it can
+// be tested without a browser, and importing this file must not start a render.
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(JSON.stringify({ ok: false, error: String(err.message ?? err) }))
+    process.exit(1)
+  })
+}

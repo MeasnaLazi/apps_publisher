@@ -1,0 +1,14 @@
+{
+  "name": "design-ss",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "One front door for the strip toolkit: design (agent) + check + render, with pipeline-shaped exit codes.",
+  "bin": {
+    "design-ss": "bin/design-ss"
+  },
+  "scripts": {
+    "check": "node bin/design-ss check --all",
+    "test": "node cli/test/auth-hint.test.mjs"
+  }
+}
