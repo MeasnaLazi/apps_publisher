@@ -287,8 +287,25 @@ design-ss: 1290x2796 -> 1284x2778  (every length x0.995349)
 design-ss:   the shapes differ slightly: 5.0px trimmed from the panel height — look at the bottom edge
 ```
 
-**Guards.** A shape that differs by more than 1% is refused: *"a retarget
-rescales a composition; it cannot re-lay-out one. Design this size instead."*
+**Same shape only.** A target whose aspect ratio differs from the source by more
+than 1% is refused: *"a retarget rescales a composition; it cannot re-lay-out
+one. Design this size instead."* Measured drift from a 1290×2796 source:
+
+```
+OK      iPhone 6.9  1320x2868    0.24%      REFUSE  iPhone 5.5  1242x2208   21.92%
+OK      iPhone 6.5  1284x2778    0.18%      REFUSE  iPhone 4.7   750x1334   21.86%
+OK      iPhone 6.5  1242x2688    0.15%      REFUSE  iPad 13    2064x2752    62.56%
+OK      iPhone 6.3  1179x2556    0.02%      REFUSE  iPad 12.9  2048x2732    62.48%
+OK      iPhone 6.1  1170x2532    0.15%
+```
+
+The threshold sits in a wide gap: the worst same-family pair is 0.24%, the best
+cross-family pair is 21.86%. **So one design at 1290×2796 covers every iPhone
+slot Apple currently offers.** iPad is a separate design run — not because the
+arithmetic is hard, but because the shape, the frame pack's device type, the
+captures in `input/<target>/`, and the composition itself are all different.
+
+**Other guards.**
 And after rendering, every panel's measured size is compared against what you
 asked for — an exact size is the point of the command, so it is proven, not
 assumed.

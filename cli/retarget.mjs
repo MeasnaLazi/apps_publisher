@@ -94,7 +94,10 @@ export async function retarget(roots, { target, size, fromSize, skipRender }) {
   const drift = aspectDrift({ fromW: from.w, fromH: from.h, toW, toH })
   if (drift > 0.01) {
     say(`${from.w}x${from.h} and ${toW}x${toH} differ in shape by ${(drift * 100).toFixed(1)}%`)
-    say(`  a retarget rescales a composition; it cannot re-lay-out one. Design this size instead.`)
+    say(`  a retarget rescales a composition; it cannot re-lay-out one — and it cannot`)
+    say(`  change which device is in the frame or which captures fill it.`)
+    say(`  design this shape instead:  design-ss design --target <name> --message "..."`)
+    say(`  (all current iPhone sizes are within 0.24% of each other and do retarget)`)
     return EXIT.USAGE
   }
 

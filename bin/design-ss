@@ -64,6 +64,16 @@ RETARGET OPTIONS
   Every length is scaled by one factor, so the composition moves as one piece —
   which is what changing the two panel numbers by hand does not do.
 
+  SAME SHAPE ONLY. A target whose aspect ratio differs from the source by more
+  than 1% is refused. Rescaling moves a composition; it cannot re-lay-out one,
+  and it cannot change which device is in the frame or which captures fill it.
+    works     every current iPhone size — 6.9", 6.5", 6.3" and 6.1" are within
+              0.24% of each other, so one design covers every iPhone slot
+    works     iPad 13" <-> 12.9"  (0.05%)
+    refused   iPhone <-> iPad  (38-63%)
+    refused   current sizes <-> the old 16:9 5.5"/4.7"  (22%)
+  A refused pair is a design run against input/<target>/, not a rescale.
+
 DESIGN OPTIONS
   --target <name>       device target: reads <input>/<name>/, writes strips/<name>/  [required]
   --message <text>      the operator request handed to the agent                     [required]
