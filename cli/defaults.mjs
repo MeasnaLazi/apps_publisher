@@ -29,6 +29,12 @@ export const DEFAULTS = {
         '--permission-mode', 'acceptEdits',
         '--max-turns', '{maxTurns}',
         '--add-dir', '{toolkitRoot}',
+        // ...and the input folder. The agent runs with the work root as its
+        // cwd and can only read there; --input pointing anywhere else is
+        // unreadable to it unless it is named. The CLI's own preflight uses
+        // plain fs and is not sandboxed, so it happily passes while the agent
+        // is blocked -- which is how this hid.
+        '--add-dir', '{inputDir}',
       ],
       // No requireEnv. How an agent authenticates is not the toolkit's to
       // assume -- claude may hold a keychain session, an API key, a token

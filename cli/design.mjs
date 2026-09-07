@@ -10,6 +10,23 @@ import { stripPath } from './roots.mjs'
 const say = (msg) => process.stderr.write(`design-ss: ${msg}\n`)
 
 /**
+ * Find the agent's NEEDS_INPUT line.
+ *
+ * The marker is emitted at the start of a line, but with --output-format
+ * stream-json it arrives inside a JSON string, where that newline is the two
+ * characters \\ and n. A /^NEEDS_INPUT:/m anchor never matches it, so a run
+ * that told us exactly what was wrong was reported as "wrote nothing" instead.
+ * Unescape first, then anchor.
+ */
+export function findNeedsInput(output) {
+  const flat = String(output ?? '').replace(/\\n/g, '\n')
+  const m = flat.match(/^NEEDS_INPUT:.*$/m)
+  // Stop at the JSON string terminator, or the operator reads our diagnostic
+  // with `","type":"result"}` stuck on the end of it.
+  return m ? m[0].split('"')[0].trim() : null
+}
+
+/**
  * Phrases, not words. The first version of this matched the token "api key",
  * which also matches `"apiKeySource":"none"` in claude's own init event -- so a
  * perfectly healthy run that stopped on --max-turns was told it had an
@@ -104,10 +121,8 @@ export async function design(roots, opts) {
     return EXIT.USAGE
   }
   if (result.timedOut) { say(`agent hit the ${Math.round(timeoutMs / 1000)}s deadline after ${elapsed}s`); return EXIT.TIMEOUT }
-  if (/^NEEDS_INPUT:/m.test(result.output)) {
-    say(`agent reported ${(result.output.match(/^NEEDS_INPUT:.*$/m) || [''])[0]}`)
-    return EXIT.NEEDS_INPUT
-  }
+  const needsInput = findNeedsInput(result.output)
+  if (needsInput) { say(`agent reported ${needsInput}`); return EXIT.NEEDS_INPUT }
   if (result.signal) { say(`agent was stopped by ${result.signal} after ${elapsed}s`); return EXIT.ABORTED }
   if (result.code !== 0) {
     say(`agent exited ${result.code} after ${elapsed}s — its output is above, and in ${path.join(roots.stateDir, 'agent.log')}`)

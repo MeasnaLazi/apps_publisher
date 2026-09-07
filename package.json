@@ -9,6 +9,6 @@
   },
   "scripts": {
     "check": "node bin/design-ss check --all",
-    "test": "node cli/test/auth-hint.test.mjs && node cli/test/retarget.test.mjs"
+    "test": "node cli/test/auth-hint.test.mjs && node cli/test/retarget.test.mjs && node cli/test/needs-input.test.mjs"
   }
 }
