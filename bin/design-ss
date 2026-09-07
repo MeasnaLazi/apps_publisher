@@ -4,6 +4,7 @@
  *
  *   design-ss design --target iphone --message "..."   agent, then the gate
  *   design-ss gate   --target iphone                   the gate alone, no agent
+ *   design-ss retarget --target iphone --size 1284x2778  rescale to a store size
  *   design-ss check  [files... | --all | --packs]      structural conformance
  *   design-ss render --target iphone                   strip -> store-size PNGs
  *   design-ss frames <target> [--list]                 pick a device frame pack
@@ -24,6 +25,7 @@ import { readFileSync } from 'node:fs'
 import { EXIT } from '../cli/exit-codes.mjs'
 import { run } from '../cli/proc.mjs'
 import { design, gateOnly, stop } from '../cli/design.mjs'
+import { retarget } from '../cli/retarget.mjs'
 import { loadConfig } from '../cli/agents.mjs'
 import { resolveRoots, findWorkRoot, TOOLKIT_ROOT } from '../cli/roots.mjs'
 
@@ -37,6 +39,7 @@ USAGE
 COMMANDS
   design    Run the configured agent against a target, then gate the result
   gate      Run the gate alone on an existing strip (no agent, no API key)
+  retarget  Rescale a strip to another store size, then check and render it
   check     composer/check-schema.mjs -- structural conformance, no browser
   render    composer/render.mjs -- strip HTML to store-size PNGs
   frames    composer/pick-frame.mjs -- pick or list device frame packs
@@ -49,6 +52,17 @@ PATHS
   Output always goes to <work root>/strips. There is no --output: cd instead.
   The work root is the nearest ancestor of the cwd holding design-ss.config.json
   or input/, else the cwd.
+
+RETARGET OPTIONS
+  --target <name>       the strip to rescale                                    [required]
+  --size <WxH>          the store size to produce, e.g. 1284x2778               [required]
+  --from-size <WxH>     the source size, if it cannot be detected automatically
+  --no-render           write and check the variant; skip the browser
+
+  Writes strips/<target>/strip-<W>x<H>.html beside the original and renders it
+  to strips/<target>/rendered-<W>x<H>/. The source strip is never modified.
+  Every length is scaled by one factor, so the composition moves as one piece —
+  which is what changing the two panel numbers by hand does not do.
 
 DESIGN OPTIONS
   --target <name>       device target: reads <input>/<name>/, writes strips/<name>/  [required]
@@ -107,7 +121,7 @@ if (command === '--version' || command === '-v') { process.stdout.write(`${VERSI
 // exist), then the project's config is read from it, then the config can say
 // where input lives.
 const workRoot = findWorkRoot()
-const config = ['design', 'gate', 'render', 'stop'].includes(command)
+const config = ['design', 'gate', 'render', 'stop', 'retarget'].includes(command)
   ? await loadConfig(workRoot)
   : null
 const roots = resolveRoots({ workRoot, inputFlag: args.input === true ? null : args.input, config })
@@ -141,6 +155,15 @@ switch (command) {
       const r = await run('node', [path.join(TOOLKIT_ROOT, 'composer/render.mjs'), ...rest], { cwd: roots.workRoot })
       process.exit(r.code ?? 1)
     }
+    break
+
+  case 'retarget':
+    process.exit(await retarget(roots, {
+      target: str(args.target, 'target'),
+      size: str(args.size, 'size'),
+      fromSize: args['from-size'] === true ? null : args['from-size'],
+      skipRender: args['no-render'] === true,
+    }))
     break
 
   case 'stop':

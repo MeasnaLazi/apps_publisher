@@ -7,6 +7,7 @@ whether what it produced is acceptable.
 ```
 design-ss design --target iphone --message "warmer palette, lead with the timeline"
 design-ss gate   --target iphone
+design-ss retarget --target iphone --size 1284x2778
 design-ss check  --all
 design-ss render --target iphone
 design-ss frames iphone --list
@@ -243,6 +244,58 @@ Each flag in the `claude` row is there for a reason:
   chain.
 - **stdin is never inherited.** `claude -p` otherwise waits ~3s for it
   (*"no stdin data received in 3s"*).
+
+## Retargeting to another store size
+
+```
+design-ss retarget --target iphone --size 1284x2778
+```
+
+A strip is authored at one size, and the store wants another — a 6.9" set
+(1290×2796) rejected by a 6.5" slot that takes 1284×2778.
+
+The tempting fix is `sed 's/1290px/1284px/'`. It is **subtly wrong**: it resizes
+the canvas and leaves everything positioned inside it exactly where it was. A
+horizon line at `top: 2398px` is 85.8% of a 2796px panel and 86.3% of a 2778px
+one. Six pixels of drift, invisible in a diff, visible in the render where a
+device no longer sits on its line.
+
+`retarget` scales **every length by one factor**, so the composition moves as a
+single piece — positions, sizes, type, radii, offsets. It touches px values
+inside `<style>` blocks and `style=""` attributes only, so a caption that
+happens to read "1290px" is left alone.
+
+```
+strips/iphone/strip.html                the source, never modified
+strips/iphone/strip-1284x2778.html      written beside it
+strips/iphone/rendered-1284x2778/       its PNGs
+```
+
+A sibling document rather than a new folder, so the two sizes share
+`screenshots/` and `images/` and the folder name still matches the frame pack's
+type — which is what `check-schema`'s target rule reads.
+
+**The residual.** One factor cannot hit both dimensions when the aspect ratios
+differ slightly (1290×2796 is 0.46137; 1284×2778 is 0.46220). Scaling is done by
+**width**, so full-bleed elements still span the panel exactly — a seam at the
+edge is visible, a few pixels off the bottom is not — and the panel box is then
+snapped to the exact target height. The difference is printed rather than
+hidden:
+
+```
+design-ss: 1290x2796 -> 1284x2778  (every length x0.995349)
+design-ss:   the shapes differ slightly: 5.0px trimmed from the panel height — look at the bottom edge
+```
+
+**Guards.** A shape that differs by more than 1% is refused: *"a retarget
+rescales a composition; it cannot re-lay-out one. Design this size instead."*
+And after rendering, every panel's measured size is compared against what you
+asked for — an exact size is the point of the command, so it is proven, not
+assumed.
+
+**What it can't check** is whether the design still *reads*. Hand-forced `<br>`
+breaks are exactly what a rescale disturbs, so the command finishes by telling
+you to look at the PNGs.
 
 ## The renderer serves two mounts
 

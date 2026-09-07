@@ -41,6 +41,27 @@ export async function render(roots, target, extraArgs = []) {
   return { ...result, data }
 }
 
+/** The same two tools, pointed at one file rather than a target's strip.html. */
+export async function checkSchemaFile(roots, relStrip) {
+  return run('node', [
+    path.join(roots.toolkitRoot, 'composer/check-schema.mjs'),
+    '--strips-root', roots.stripsDir,
+    relStrip,
+  ], { cwd: roots.workRoot })
+}
+
+export async function renderFile(roots, relStrip, relOut) {
+  const result = await run('node', [
+    path.join(roots.toolkitRoot, 'composer/render.mjs'),
+    '--strip', relStrip,
+    '--strips-root', roots.stripsDir,
+    '--out', relOut,
+  ], { cwd: roots.workRoot, echo: false })
+  let data = null
+  try { data = JSON.parse(result.output.slice(result.output.indexOf('{'))) } catch { /* not JSON */ }
+  return { ...result, data }
+}
+
 export function verdict(data) {
   const problems = (data && Array.isArray(data.problems)) ? data.problems : []
   return {
