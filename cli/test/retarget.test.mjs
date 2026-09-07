@@ -35,17 +35,23 @@ check('the panel box is exactly the requested size',
 // This is the bug the command exists for. sed leaves top:2398px alone; the
 // horizon then sits at 86.3% of the panel instead of 85.8%.
 check('positions move with the canvas, not against it',
-  r.html.includes('top:2386.85px'), 'expected 2398 × 1284/1290 = 2386.85')
+  r.html.includes('top:2387px'), 'expected round(2398 × 1284/1290) = 2387')
 
 check('full-bleed widths still span the panel exactly',
   r.html.includes('width:1284px'), 'a decor spanning 1290 must become exactly 1284')
 
-check('type scales too, so line breaks hold', r.html.includes('font-size:95.55px'))
+check('type scales too, so line breaks hold', r.html.includes('font-size:96px'))
 
 check('hairlines survive', /border-bottom:\s*1px solid/.test(r.html) || r.html.includes('0.99px'))
 
 // Copy text is not geometry.
 check('text that merely says "1290px" is untouched', r.html.includes('Only 1290px wide'))
+
+// The invariant behind the rounding: fractional lengths put panels on
+// fractional boundaries, the screenshot clip rounds outward, and a panel
+// measured at 1284px exports as a 1285px PNG the store rejects.
+check('no fractional pixels survive the rescale',
+  !/[0-9]\.[0-9]+px/.test(r.html), (r.html.match(/[0-9]\.[0-9]+px/g) || []).slice(0, 3).join(', '))
 
 check('the height residual is reported, not hidden',
   Math.abs(r.residual - 5.02) < 0.05, `residual=${r.residual}`)

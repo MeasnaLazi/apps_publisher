@@ -3,6 +3,16 @@ import { promises as fs } from 'node:fs'
 import { EXIT } from './exit-codes.mjs'
 import { checkSchemaFile, renderFile, verdict, exists } from './gate.mjs'
 
+/** Width and height straight out of the PNG's IHDR — the bytes the store sees. */
+async function pngSize(file) {
+  const fh = await fs.open(file)
+  try {
+    const buf = Buffer.alloc(24)
+    await fh.read(buf, 0, 24, 0)
+    return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }
+  } finally { await fh.close() }
+}
+
 /**
  * Retarget a strip to a different store size.
  *
@@ -25,7 +35,12 @@ import { checkSchemaFile, renderFile, verdict, exists } from './gate.mjs'
  * pixels rather than hidden.
  */
 
-const trim = (v) => String(Math.round(v * 100) / 100)
+// Whole pixels, deliberately. Scaled lengths used to keep two decimals, which
+// left panels on fractional boundaries; Playwright's screenshot clip rounds
+// outward, and a panel measured at exactly 1284px exported as a 1285px PNG.
+// The store validates the file, not the layout box. At these scale factors a
+// half-pixel of rounding is invisible; a rejected upload is not.
+const trim = (v) => String(Math.round(v))
 const escapeNum = (n) => String(n).replace(/\./g, '\\.')
 const scaleLengths = (css, k) => css.replace(/(-?\d*\.?\d+)px/g, (_, n) => `${trim(+n * k)}px`)
 
@@ -125,17 +140,25 @@ export async function retarget(roots, { target, size, fromSize, skipRender }) {
     return EXIT.GATE
   }
 
-  // The point of the command is an exact size. Prove it rather than assume it.
-  const panels = rendered.data?.panels ?? []
-  const wrong = panels.filter((p) => p.width !== toW || p.height !== toH)
-  if (!panels.length || wrong.length) {
-    say(`rendered ${panels.length} panel(s), ${wrong.length} at the wrong size:`)
-    for (const p of wrong.slice(0, 5)) say(`    panel ${p.panel}: ${p.width}x${p.height}, wanted ${toW}x${toH}`)
+  // The point of the command is an exact size, so prove it against the files
+  // that were written -- not against render.mjs's measurement of the layout.
+  // Those two disagreed once: every panel measured 1284x2778 and four of the
+  // five PNGs were 1285 wide. The store reads the file.
+  const outAbs = path.join(roots.workRoot, outRel)
+  const pngs = (await fs.readdir(outAbs)).filter((f) => /^panel.*\.png$/.test(f)).sort()
+  const wrong = []
+  for (const f of pngs) {
+    const { w, h } = await pngSize(path.join(outAbs, f))
+    if (w !== toW || h !== toH) wrong.push(`${f}: ${w}x${h}`)
+  }
+  if (!pngs.length || wrong.length) {
+    say(`${pngs.length} PNG(s) written, ${wrong.length} at the wrong size:`)
+    for (const w of wrong.slice(0, 6)) say(`    ${w}, wanted ${toW}x${toH}`)
     return EXIT.GATE
   }
 
   const { errors, warnings } = verdict(rendered.data)
-  say(`rendered ${panels.length} panel(s) at ${toW}x${toH}, ${errors.length} error(s), ${warnings.length} warning(s)`)
+  say(`rendered ${pngs.length} panel(s) at ${toW}x${toH} — sizes verified from the PNGs, ${errors.length} error(s), ${warnings.length} warning(s)`)
   say(`  ${outRel}/ — look at them before you ship; forced line breaks are what a rescale disturbs`)
   if (errors.length) return EXIT.GATE
   if (warnings.length) return EXIT.WARNINGS
