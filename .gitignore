@@ -24,6 +24,7 @@ strip_editor/dist/
 # fine to hold on your own disk as reference, not ours to redistribute under
 # this repo's MIT licence. composer/references/README.md has always said so.
 composer/references/*/
+composer/references/history.md
 
 # macOS Finder droppings.
 .DS_Store
