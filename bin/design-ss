@@ -13,7 +13,7 @@
  * Read from anywhere; write where you are. --input may point at a folder
  * outside the project (a pinned clone, a read-only mount); everything written
  * lands under the work root -- the nearest ancestor of the cwd holding
- * design-ss.config.json or input/, else the cwd itself. There is no --output:
+ * a design-ss.config.json (yours, optional) or input/, else the cwd. No --output:
  * `cd` is the --output flag.
  *
  * Data goes to stdout, chatter to stderr, and the exit code is the answer:
@@ -50,8 +50,8 @@ PATHS
                         (default: <work root>/input; or DESIGN_SS_INPUT, or
                         paths.input in your project's design-ss.config.json)
   Output always goes to <work root>/strips. There is no --output: cd instead.
-  The work root is the nearest ancestor of the cwd holding design-ss.config.json
-  or input/, else the cwd.
+  The work root is the nearest ancestor of the cwd holding input/ or a
+  design-ss.config.json — that file is yours and optional; the toolkit has none.
 
 RETARGET OPTIONS
   --target <name>       the strip to rescale                                    [required]

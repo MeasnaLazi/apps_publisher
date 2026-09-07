@@ -146,6 +146,35 @@ agent, not in `app.md`, so re-running the same input gives you a *different*
 strip rather than the same one back. Copy a folder somewhere else if a
 particular result is worth keeping.
 
+## `design-ss` — the command line
+
+The same run without a conversation: takes flags, writes files, returns an exit
+code, and never asks a question — so a script or a pipeline can drive it.
+
+```bash
+design-ss design   --target iphone --message "warmer palette, lead with the timeline"
+design-ss retarget --target iphone --size 1284x2778   # rescale to another store size
+design-ss gate     --target iphone                    # check + render, no agent, no key
+design-ss check    --all                              # schema only, no browser
+design-ss render   --target iphone                    # strip -> store-size PNGs
+design-ss frames   iphone --list                      # device frame packs
+design-ss stop                                        # cancel this project's run
+```
+
+`--input <dir>` may point anywhere; output always goes to `<work root>/strips/`,
+so the toolkit can be installed once and aimed at any project. `--agent stub`
+runs the whole path with no model and no cost.
+
+| | | | |
+|---|---|---|---|
+| `0` | designed, checked, rendered | `4` | the agent process failed |
+| `1` | gate failed — schema or render errors | `5` | `NEEDS_INPUT` — the input folder is incomplete |
+| `2` | usage, unknown agent, or it would not start | `6` | warnings only |
+| `3` | the agent finished and wrote no strip | `124` / `143` | hit its deadline / was stopped |
+
+Full reference, including which store sizes `retarget` can and cannot reach:
+[`docs/cli.md`](docs/cli.md).
+
 ## `strip_editor` — the parts you want to move yourself
 
 ```bash
@@ -193,6 +222,7 @@ alternatives on your fifth.
 | [`AGENTS.md`](AGENTS.md) | the agent entry point — start an agent here |
 | [`skills/strip-design/SKILL.md`](skills/strip-design/SKILL.md) | how a design run works, and the rules learned from real failures |
 | [`skills/strip-design/archetypes.md`](skills/strip-design/archetypes.md) | the design vocabulary — the authority on anything visual |
+| [`docs/cli.md`](docs/cli.md) | the `design-ss` command line: flags, exit codes, cancelling a run |
 | [`composer/README.md`](composer/README.md) | the renderer, the schema checker, and the frame packs |
 | [`composer/strip-schema.md`](composer/strip-schema.md) | the markup contract a strip has to satisfy |
 | [`NOTES.md`](NOTES.md) | non-obvious logic, and what breaks if you "fix" it |

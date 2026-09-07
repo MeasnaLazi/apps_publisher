@@ -24,15 +24,19 @@ design-ss stop
 | **work root** | The project being worked on. Everything a run writes lands here — `strips/` and `.design-ss/` — and nowhere else |
 | **input** | The one thing that may live outside both, because it is the only thing a run reads and never writes |
 
+**The toolkit ships no config file.** `design-ss.config.json` in this document
+always means an *optional* file in **your project**, never one in the toolkit —
+the toolkit's defaults are code, in `cli/defaults.mjs`.
+
 The work root is found the way git finds a repository: walk up from the cwd for
-`design-ss.config.json` or `input/`, else the cwd itself. Run from a subfolder
+a `design-ss.config.json` or an `input/`, else the cwd itself. Run from a subfolder
 and the output still goes to the project root rather than scattering a `strips/`
 directory wherever you were standing.
 
 Input resolves in this order:
 
 ```
---input <dir>  >  DESIGN_SS_INPUT  >  paths.input in design-ss.config.json  >  <work root>/input
+--input <dir>  >  DESIGN_SS_INPUT  >  paths.input in your project's config  >  <work root>/input
 ```
 
 A `--input` path is relative to where you typed it; a configured one is relative
@@ -75,7 +79,7 @@ design-ss design
 
 Steps 1–3 and 5–8 are identical whichever agent runs. **Step 4 is the only
 vendor-specific line in the whole flow**, and it is a table in
-`design-ss.config.json`, not code. That is possible only because the verdict
+your project's config, not code. That is possible only because the verdict
 comes from the deterministic tools — an adapter never has to parse vendor
 output, so adding an agent is a config entry.
 
@@ -145,10 +149,13 @@ STUB_MODE=noop design-ss design --target iphone --message x --agent stub; echo $
 
 ## Configuration
 
-**There is no config file in the toolkit.** The defaults live in
-`cli/defaults.mjs`, so the CLI works with nothing configured at all. A
-`design-ss.config.json` at the **work root** overrides them, merged one level
-deep across `defaults`, `agents` and `paths` — override one agent row or one
+**There is no config file in the toolkit** — the defaults live in
+`cli/defaults.mjs`, so the CLI works with nothing configured at all, and there is
+nothing in the repo to edit.
+
+The only `design-ss.config.json` that exists is one **you** create at your
+project's work root, and it is entirely optional. It overrides the built-in
+defaults, merged one level deep across `defaults`, `agents` and `paths` — override one agent row or one
 default without restating the rest.
 
 ```jsonc
@@ -174,7 +181,7 @@ agent exited 1 after 2s — its output is above, and in .design-ss/agent.log    
 ```
 
 `requireEnv` stays available for a project that *does* know its agent needs a
-variable — declare it in your own `design-ss.config.json` and it is checked
+variable — declare it in your project's config and it is checked
 before anything is spawned.
 
 ### When the agent cannot authenticate
@@ -355,7 +362,7 @@ Everything a caller needs, and nothing about any particular caller:
 
 | | |
 |---|---|
-| **Input** | flags, environment, and the project's `design-ss.config.json` |
+| **Input** | flags, environment, and the project's optional `design-ss.config.json` |
 | **Output** | `<work root>/strips/<target>/`, and `rendered/` inside it |
 | **stdout** | data (the renderer's JSON) |
 | **stderr** | progress and errors |
