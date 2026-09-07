@@ -1,7 +1,26 @@
 {
-  "name": "design-ss",
+  "name": "@measnalazi/design-ss",
   "version": "0.1.0",
-  "description": "One front door for the strip toolkit: design (agent) + check + render, with pipeline-shaped exit codes.",
+  "description": "Design App Store and Play Store screenshot strips as HTML, render them to store-size PNGs, and drive it all from one CLI.",
+  "keywords": [
+    "app-store",
+    "play-store",
+    "app-screenshots",
+    "screenshots",
+    "aso",
+    "ios",
+    "android",
+    "playwright",
+    "cli"
+  ],
+  "homepage": "https://github.com/MeasnaLazi/design_ss#readme",
+  "bugs": "https://github.com/MeasnaLazi/design_ss/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MeasnaLazi/design_ss.git"
+  },
+  "license": "MIT",
+  "author": "Measna",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -9,11 +28,15 @@
   "bin": {
     "design-ss": "bin/design-ss"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "npm run test:cli && npm run test:composer",
     "test:cli": "node cli/test/auth-hint.test.mjs && node cli/test/retarget.test.mjs && node cli/test/needs-input.test.mjs",
     "test:composer": "node composer/test/screen-geometry.test.mjs && node composer/test/inspect.test.mjs && node composer/test/check-schema.test.mjs && node composer/test/pick-frame.test.mjs && node composer/test/render-server.test.mjs",
     "check": "node bin/design-ss check --all",
+    "prepublishOnly": "npm test && npm run check",
     "postinstall": "node scripts/postinstall.mjs"
   },
   "dependencies": {
