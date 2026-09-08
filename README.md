@@ -4,6 +4,8 @@
 
 ![A five-panel iPhone strip: warm parchment ground, serif headlines, upright devices](docs/strip-iphone-1.jpg)
 
+*Checkout the screenshots above [Bio — AI Journal & Life Story](https://apps.apple.com/us/app/bio-ai-journal-life-story/id6757865576) on the App Store.*
+
 ![The same app on a deep green ground with a bleed of device art behind each panel](docs/strip-iphone.jpg)
 
 ![The same app again: a photo band across the top, numbered panels, dark ground](docs/strip-iphone-2.jpg)
