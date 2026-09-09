@@ -8,6 +8,7 @@
  *   design-ss check  [files... | --all | --packs]      structural conformance
  *   design-ss render --target iphone                   strip -> store-size PNGs
  *   design-ss frames <target> [--list]                 pick a device frame pack
+ *   design-ss design install                           fetch Chromium for the renderer, once
  *   design-ss editor install                             fetch the editor's dependencies, once
  *   design-ss editor start [--port 4714]                 start it in the background
  *   design-ss editor stop                                stop it
@@ -30,6 +31,7 @@ import { run } from '../cli/proc.mjs'
 import { design, gateOnly, stop } from '../cli/design.mjs'
 import { retarget } from '../cli/retarget.mjs'
 import { installEditor, startEditor, stopEditor, editorStatus, parsePort, DEFAULT_PORT } from '../cli/editor.mjs'
+import { installBrowser, requireChromium } from '../cli/browser.mjs'
 import { loadConfig } from '../cli/agents.mjs'
 import { resolveRoots, findWorkRoot, TOOLKIT_ROOT } from '../cli/roots.mjs'
 
@@ -105,6 +107,12 @@ EDITOR OPTIONS
   separate piece of work.
 
 DESIGN OPTIONS
+  design install [--force]  fetch Chromium for the renderer (~150 MB, once)
+
+  design, gate, render and retarget need a browser and none of them will fetch
+  one for you: they check, name the missing step and exit 2. check, frames,
+  retarget --no-render and the editor need no browser at all.
+
   --target <name>       device target: reads <input>/<name>/, writes strips/<name>/  [required]
   --message <text>      the operator request handed to the agent                     [required]
   --agent <name>        claude or stub, or one your project's config adds (default: claude)
@@ -168,6 +176,10 @@ const roots = resolveRoots({ workRoot, inputFlag: args.input === true ? null : a
 
 switch (command) {
   case 'design': {
+    // `design install` is the browser, not a design run: the renderer needs
+    // Chromium and nothing fetches it behind your back. Same shape as
+    // `editor install`.
+    if (args._[0] === 'install') process.exit(await installBrowser({ force: args.force === true }))
     const d = config.defaults
     process.exit(await design(roots, {
       config,
@@ -192,6 +204,7 @@ switch (command) {
     if (args.target && args.target !== true) {
       process.exit(await gateOnly(roots, { target: String(args.target), skipRender: false }))
     } else {
+      if (!await requireChromium()) process.exit(EXIT.USAGE)
       const r = await run('node', [path.join(TOOLKIT_ROOT, 'composer/render.mjs'), ...rest], { cwd: roots.workRoot })
       process.exit(r.code ?? 1)
     }

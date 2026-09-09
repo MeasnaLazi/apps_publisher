@@ -5,6 +5,7 @@ import { run } from './proc.mjs'
 import * as state from './run-state.mjs'
 import { composePrompt, resolveAgent } from './agents.mjs'
 import { checkSchema, render, verdict, cleanOutput, exists } from './gate.mjs'
+import { browserAdvice } from './browser.mjs'
 import { stripPath } from './roots.mjs'
 
 const say = (msg) => process.stderr.write(`design-ss: ${msg}\n`)
@@ -167,6 +168,7 @@ export async function gateOnly(roots, { target, skipRender }) {
     // bare exit code to debug from.
     say(`render exited ${rendered.code}`)
     if (rendered.output.trim()) process.stderr.write(`${rendered.output.trim()}\n`)
+    for (const l of browserAdvice(rendered.output)) say(l)
     return EXIT.GATE
   }
   const { errors, warnings } = verdict(rendered.data)

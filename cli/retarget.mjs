@@ -2,6 +2,7 @@ import path from 'node:path'
 import { promises as fs } from 'node:fs'
 import { EXIT } from './exit-codes.mjs'
 import { checkSchemaFile, renderFile, verdict, exists } from './gate.mjs'
+import { browserAdvice } from './browser.mjs'
 
 /** Width and height straight out of the PNG's IHDR — the bytes the store sees. */
 async function pngSize(file) {
@@ -137,6 +138,7 @@ export async function retarget(roots, { target, size, fromSize, skipRender }) {
   if (rendered.code !== 0) {
     say(`render exited ${rendered.code}`)
     if (rendered.output.trim()) process.stderr.write(`${rendered.output.trim()}\n`)
+    for (const l of browserAdvice(rendered.output)) say(l)
     return EXIT.GATE
   }
 

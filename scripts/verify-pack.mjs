@@ -97,10 +97,23 @@ try {
     ['check --packs', ['check', '--packs'], 0],
     ['frames iphone', ['frames', 'iphone'], 0],
     ['stop with nothing running', ['stop'], 0],
+    // The two things an installed toolkit must say when a prerequisite is
+    // missing. Both are the whole reason there is no postinstall: nothing here
+    // installs itself, so both have to name the step instead of failing oddly.
+    ['editor start with no editor installed', ['editor', 'start'], 2],
   ]
   for (const [label, args, want] of checks) {
     const r = dss(args)
     r.status === want ? pass(`${label} → ${r.status}`) : fail(label, `exit ${r.status}, wanted ${want}`)
+  }
+
+  // The browser is its own step now, and this is the only place it gets
+  // exercised against a real installed package rather than a checkout.
+  if (!skipRender) {
+    const inst2 = dss(['design', 'install'])
+    inst2.status === 0
+      ? pass(`design install → 0  (${(inst2.stderr || '').trim().split('\n').pop()})`)
+      : fail('design install', `exit ${inst2.status}\n${(inst2.stderr || '').trim().split('\n').slice(-3).join('\n')}`)
   }
 
   const design = dss(['design', '--target', 'iphone', '--message', 'verify', '--agent', 'stub',

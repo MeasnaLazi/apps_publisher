@@ -126,6 +126,62 @@ Why the *group* and not the pid: the agent spawns `node`, which spawns
 Playwright's Chromium. Kill only the process you hold and Chromium is orphaned,
 holding a few hundred MB and a lock on a workspace the next build will reuse.
 
+## Chromium
+
+```
+design-ss design install [--force]   fetch the renderer's browser (~150 MB, once)
+```
+
+`design`, `gate`, `render` and `retarget` need a browser and none of them will
+fetch one for you:
+
+```
+$ design-ss gate --target iphone
+design-ss: schema clean
+design-ss: the renderer needs Chromium and this machine has none
+design-ss:   run:  design-ss design install      (~150 MB, once)
+design-ss:   check, frames, retarget --no-render and editor work without it.
+```
+
+Same rule as the editor, for the same reason: a command that downloads 150 MB
+because you asked it to render a strip is a command you cannot predict, and it
+spends the time at the moment you were least expecting to. `install` is
+idempotent; `--force` refetches. `PLAYWRIGHT_BROWSERS_PATH` still decides where
+it lands, and `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` makes `install` refuse rather
+than reach the network.
+
+**A present browser is not proof it can launch.** Playwright runs headless
+through a *second* binary — `chrome-headless-shell`, in its own revision
+directory — while `chromium.executablePath()` names the headed one.
+`design install` fetches both, so they disagree only when an install is partial;
+when they do, playwright's message reads like a bug in the strip, so the render
+path translates it into `design-ss design install --force`. That one was found
+by running it, not by reading the code.
+
+### Why not a postinstall
+
+Because a postinstall makes `npm install -g <a git spec>` impossible. npm
+symlinks such a package into its own cache and then deletes the target, so the
+script runs with a working directory that no longer exists: `node
+scripts/postinstall.mjs` cannot resolve its own relative path and node dies in
+`run_main` before the first line. Measured on npm 10.9.8, reproduced with a
+seven-line package that has nothing but a bin and a postinstall.
+
+Making the script survive that is a trap, and this was tested too:
+
+| postinstall | npm reports | does the installed bin run? |
+|---|---|---|
+| `node scripts/postinstall.mjs` | error, code 1 | no |
+| `node -e "…"` (survives a dead cwd) | **added 1 package** | no — dangling symlink |
+| none | added 1 package | **yes** |
+
+A script that survives turns a loud failure into a silent one: npm reports
+success and leaves the package pointing at a directory it has deleted. Only
+having no install hook at all produces a working install, which is why
+`cli/test/browser.test.mjs` asserts that `package.json` declares none.
+
+Registry and tarball installs were never affected either way.
+
 ## The strip editor
 
 ```

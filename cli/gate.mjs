@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { run } from './proc.mjs'
 import { stripPath, stripLabel } from './roots.mjs'
+import { requireChromium } from './browser.mjs'
 
 /**
  * The gate. An agent's exit code says it stopped talking, not that it designed
@@ -29,6 +30,7 @@ export async function checkSchema(roots, target) {
  * success -- a stale one from a previous build outlives a crash.
  */
 export async function render(roots, target, extraArgs = []) {
+  if (!await requireChromium()) return { code: 2, signal: null, output: '', data: null }
   const result = await run('node', [
     path.join(roots.toolkitRoot, 'composer/render.mjs'),
     '--strip', stripPath(roots, target),
@@ -51,6 +53,7 @@ export async function checkSchemaFile(roots, relStrip) {
 }
 
 export async function renderFile(roots, relStrip, relOut) {
+  if (!await requireChromium()) return { code: 2, signal: null, output: '', data: null }
   const result = await run('node', [
     path.join(roots.toolkitRoot, 'composer/render.mjs'),
     '--strip', relStrip,

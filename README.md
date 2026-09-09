@@ -51,7 +51,7 @@ Google's permitted range (320–3840 px per side, at most 2:1).
 | | |
 | --- | --- |
 | **Node 22.x** | the renderer and the editor |
-| **Chromium** | headless export — fetched for you on install |
+| **Chromium** | headless export — `design-ss design install`, once |
 | **An agent** | anything that reads `AGENTS.md`: Claude Code, Gemini CLI, Codex, Open Code, Co-Pilot, Cursor...etc |
 
 Install it, and `design-ss` is on your path:
@@ -67,13 +67,15 @@ Or clone it, which is the same thing plus the sources to edit:
 git clone https://github.com/MeasnaLazi/design_ss.git
 cd design_ss
 npm install          # add `npm link` if you want the `design-ss` command
+npm run setup        # fetches Chromium — the same design-ss design install
 ```
 
-Either way you get the whole toolkit — composer, frame packs, fonts, the skill —
-and Chromium is fetched for you (~150MB, once).
-`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` skips it, and a failed download never fails
-the install: `check`, `frames` and `retarget --no-render` work without a browser;
-`design` and `render` do not.
+Either way you get the whole toolkit — composer, frame packs, fonts, the skill.
+The renderer's browser is a separate step, `design-ss design install` (~150MB,
+once), for the same reason the editor's is: nothing here downloads behind your
+back. `check`, `frames`, `retarget --no-render` and `editor` work without a
+browser; `design`, `gate`, `render` and `retarget` check for one, name the
+missing step and exit 2.
 
 Without installing, every command also works as `node bin/design-ss …`. The
 visual editor installs separately and only if you want it.
@@ -174,6 +176,7 @@ design-ss gate     --target iphone                    # check + render, no agent
 design-ss check    --all                              # schema only, no browser
 design-ss render   --target iphone                    # strip -> store-size PNGs
 design-ss frames   iphone --list                      # device frame packs
+design-ss design install                              # fetch Chromium, once
 design-ss editor install                              # fetch the visual editor, once
 design-ss editor start                                # ...run it in the background
 design-ss editor stop                                 # ...and stop it
