@@ -180,9 +180,9 @@ design-ss editor stop                                 # ...and stop it
 design-ss stop                                        # cancel this project's run
 ```
 
-`--input <dir>` may point anywhere; output always goes to `<work root>/strips/`,
-so the toolkit can be installed once and aimed at any project. `--agent stub`
-runs the whole path with no model and no cost.
+`--input <dir>` applies to `design` only and may point anywhere; output always
+goes to `<work root>/strips/`, so the toolkit can be installed once and aimed at
+any project. `--agent stub` runs the whole path with no model and no cost.
 
 | | | | |
 |---|---|---|---|
