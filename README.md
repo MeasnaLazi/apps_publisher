@@ -194,6 +194,9 @@ runs the whole path with no model and no cost.
 Full reference, including which store sizes `retarget` can and cannot reach:
 [`docs/cli.md`](docs/cli.md).
 
+**Developed and tested on macOS.** Linux should be fine — the process handling
+is POSIX — and Windows is untested.
+
 ## `strip_editor` — the parts you want to move yourself
 
 ```bash
@@ -249,7 +252,7 @@ alternatives on your fifth.
 
 ## License
 
-[MIT](LICENSE) © 2026 Measna.
+[MIT](LICENSE) © 2026 SovannmeasnaLy.
 
 The typefaces bundled in `composer/fonts/` — EB Garamond, Lora, Inter, Poppins,
 Space Grotesk and IBM Plex Mono — are licensed under the
