@@ -174,6 +174,9 @@ design-ss gate     --target iphone                    # check + render, no agent
 design-ss check    --all                              # schema only, no browser
 design-ss render   --target iphone                    # strip -> store-size PNGs
 design-ss frames   iphone --list                      # device frame packs
+design-ss editor install                              # fetch the visual editor, once
+design-ss editor start                                # ...run it in the background
+design-ss editor stop                                 # ...and stop it
 design-ss stop                                        # cancel this project's run
 ```
 

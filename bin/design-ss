@@ -8,6 +8,9 @@
  *   design-ss check  [files... | --all | --packs]      structural conformance
  *   design-ss render --target iphone                   strip -> store-size PNGs
  *   design-ss frames <target> [--list]                 pick a device frame pack
+ *   design-ss editor install                             fetch the editor's dependencies, once
+ *   design-ss editor start [--port 4714]                 start it in the background
+ *   design-ss editor stop                                stop it
  *   design-ss stop                                     kill the run this project recorded
  *
  * Read from anywhere; write where you are. --input may point at a folder
@@ -26,6 +29,7 @@ import { EXIT } from '../cli/exit-codes.mjs'
 import { run } from '../cli/proc.mjs'
 import { design, gateOnly, stop } from '../cli/design.mjs'
 import { retarget } from '../cli/retarget.mjs'
+import { installEditor, startEditor, stopEditor, editorStatus, parsePort, DEFAULT_PORT } from '../cli/editor.mjs'
 import { loadConfig } from '../cli/agents.mjs'
 import { resolveRoots, findWorkRoot, TOOLKIT_ROOT } from '../cli/roots.mjs'
 
@@ -43,6 +47,7 @@ COMMANDS
   check     composer/check-schema.mjs -- structural conformance, no browser
   render    composer/render.mjs -- strip HTML to store-size PNGs
   frames    composer/pick-frame.mjs -- pick or list device frame packs
+  editor    The strip editor: editor install, editor start, editor stop
   stop      SIGTERM the run recorded in <work root>/.design-ss/run.json
 
 PATHS
@@ -73,6 +78,31 @@ RETARGET OPTIONS
     refused   iPhone <-> iPad  (38-63%)
     refused   current sizes <-> the old 16:9 5.5"/4.7"  (22%)
   A refused pair is a design run against input/<target>/, not a rescale.
+
+EDITOR OPTIONS
+  editor install [--force]  fetch its dependencies (~200 MB, once)
+  editor start [--port n]   spawn it in the background; prints the URL on stdout
+  editor stop               SIGTERM its process group and forget it
+  editor status             is it running, since when, on which port
+
+  --force               reinstall over an existing node_modules. Needed when a
+                        tree was installed on another OS: the files are all
+                        there, and the native bindings for this machine are not.
+
+  --port <n>            default 4714. The dev server sets strictPort, so a busy
+                        port is an error, never a silent move to another one.
+
+  install is a separate step on purpose. The editor lives in the toolkit, not
+  in your project, and its dependencies are not shipped -- somebody has to
+  fetch them, but not a command you ran to open a window. start checks, names
+  the missing step and exits 2; it never installs anything itself.
+
+  State goes to <work root>/.design-ss/editor.json, output to editor.log.
+
+  Known gap: the editor still resolves strips relative to itself, so it serves
+  the TOOLKIT's strips/, not the work root's. start says which directory it is
+  serving. The two-root fix render.mjs and check-schema.mjs already have is a
+  separate piece of work.
 
 DESIGN OPTIONS
   --target <name>       device target: reads <input>/<name>/, writes strips/<name>/  [required]
@@ -175,6 +205,18 @@ switch (command) {
       skipRender: args['no-render'] === true,
     }))
     break
+
+  case 'editor': {
+    const sub = args._[0] ?? 'start'
+    if (sub === 'install') { process.exit(await installEditor({ force: args.force === true })) }
+    if (sub === 'stop') { process.exit(await stopEditor(roots)) }
+    if (sub === 'status') { process.exit(await editorStatus(roots)) }
+    if (sub !== 'start') die(`unknown editor subcommand "${sub}" -- expected install, start, stop or status`)
+    const { port, error } = parsePort(args.port, DEFAULT_PORT)
+    if (error) die(error)
+    process.exit(await startEditor(roots, { port }))
+    break
+  }
 
   case 'stop':
     process.exit(await stop(roots))

@@ -11,6 +11,9 @@ design-ss retarget --target iphone --size 1284x2778
 design-ss check  --all
 design-ss render --target iphone
 design-ss frames iphone --list
+design-ss editor install       # the visual editor: once
+design-ss editor start         # ...in the background
+design-ss editor stop
 design-ss stop
 ```
 
@@ -122,6 +125,152 @@ subfolder of the project — the same rule that decided where the output went.
 Why the *group* and not the pid: the agent spawns `node`, which spawns
 Playwright's Chromium. Kill only the process you hold and Chromium is orphaned,
 holding a few hundred MB and a lock on a workspace the next build will reuse.
+
+## The strip editor
+
+```
+design-ss editor install         fetch its dependencies (~200 MB, once; --force reinstalls)
+design-ss editor start [--port]  spawn it in the background; prints the URL
+design-ss editor status          is it running, since when, on which port
+design-ss editor stop            SIGTERM its process group and forget it
+```
+
+Three verbs, each doing one thing:
+
+```
+$ design-ss editor start
+design-ss: the editor is not installed yet
+design-ss:   run:  design-ss editor install      (~200 MB, once, into /usr/local/lib/node_modules/@measnalazi/design-ss/strip_editor)
+
+$ design-ss editor install
+design-ss: installing the editor in .../strip_editor (~200 MB, once)
+...
+design-ss: installed. Start it with: design-ss editor start
+
+$ design-ss editor start
+design-ss: editor running (pid 4812), serving strips from .../strips
+design-ss: stop it with: design-ss editor stop        log: .design-ss/editor.log
+http://localhost:4714/
+```
+
+The URL goes to stdout and everything else to stderr, so
+`open $(design-ss editor start)` works.
+
+**`start` never installs.** The editor is a Vite dev server that lives **in the
+toolkit**, not in your project: `strip_editor/` ships inside the package, its
+`node_modules` do not — the `files` allowlist excludes them, and they are
+~200 MB. So `start` checks, names the missing step, and exits `2`.
+
+`install` is idempotent — run it twice and the second says so and exits `0`. If
+the toolkit directory is not writable (a global install under a root-owned
+prefix) it says that instead of half-installing, and prints the `sudo npm
+--prefix ...` line that would work.
+
+**Background by default**, because a dev server you have to keep a terminal open
+for is not something `stop` can help with. The mechanism is the one `design-ss
+stop` already uses: the pid and process group go in
+`<work root>/.design-ss/editor.json`, output goes to `editor.log`, and `editor
+stop` reads the file and signals the group. Two files, deliberately: `design-ss
+stop` kills a design run and never the editor.
+
+**Ready means it answered.** `editor start` polls the URL until the server responds
+before it records anything or prints success. A detached child that dies on
+startup — a port held by something else, a broken install — is reported as a
+failure with the tail of its log, not as a start whose URL 404s.
+
+**A pid is not an identity.** Pids are reused, so `editor stop` confirms the
+recorded pid is still a `vite` process before signalling it. Without that check
+a stale `editor.json` will eventually point at something else's process.
+
+`--port` defaults to 4714. The dev server sets `strictPort`, so a busy port is
+an error and never a silent move to another one — the editor's iframe loads
+strip HTML from its own origin, and a server that quietly moved would be a
+second one, not the one you were told about.
+
+### An install is not portable
+
+`node_modules` is not a folder you can carry between machines. Vite pulls a
+native binding chosen by platform and architecture —
+`@rolldown/binding-darwin-arm64`, `@tailwindcss/oxide-linux-x64-gnu` — and npm
+fetches only the one matching the machine doing the installing. Move that tree
+to another OS and every file is present, `vite` resolves, and the server dies
+on a bare `MODULE_NOT_FOUND` deep in a stack trace that reads like a bug in the
+editor.
+
+So `install` stamps what it installed for, in
+`strip_editor/node_modules/.design-ss-install.json`, where a reinstall wipes it
+along with everything else. `start` compares that stamp to the machine it is on:
+
+```
+$ design-ss editor start
+design-ss: the editor is installed, but not for this machine -- installed for linux-x64, this machine is darwin-arm64
+design-ss:   node_modules carries native binaries chosen at install time; they do not travel.
+design-ss:   run:  design-ss editor install --force
+```
+
+`--force` exists for exactly this: without it `install` sees a populated
+`node_modules` and exits early.
+
+An install made by plain `npm install` carries no stamp. Unknown is not a
+mismatch, so `start` proceeds — and if it fails on a missing module anyway, the
+failure path recognises that shape and prints the same advice.
+
+This check exists because the bug happened. An `npm ci` run against a shared
+folder from a Linux container replaced a macOS tree, and the check in place at
+the time — *does `vite/package.json` exist* — answered yes on both sides of it.
+
+**`npm ci` deletes `node_modules` before it installs.** That is what makes it
+the right command for replacing a cross-platform tree, and what makes an
+interrupted run leave you worse off than you started. `install` says so before
+it begins.
+
+### Why dev, and not a built bundle
+
+`editor start` runs `vite` (the dev server), and today that is the only thing that
+works — but not because the editor needs HMR to notice a strip changing. It
+does not. Measured, on a `vite preview` of a production build with no dev
+server anywhere:
+
+```
+SSE connected: 200 text/event-stream
+>> appended to strips/iphone/strip.html on disk
+<< event: change  data: {"mtime":"...:36:10.909Z","size":15535}
+```
+
+Two reasons it works there. The API plugin mounts the *same* middleware in both
+places — `configureServer` and `configurePreviewServer` — so the whole
+`/__api/strip-editor/*` surface and the `/strips/**` mount exist in preview
+too. And the watch is plain `nodeFs.watch` on the strip's parent directory
+(parent, not the file: the editor saves by tmp+rename, which replaces the
+inode and would go deaf on a file-bound watch). Neither depends on Vite's
+watcher or on HMR. HMR only reloads the editor's own React source, which
+matters when you are developing the editor, not when you are using it.
+
+What actually forces dev is that `strip_editor/dist/` is gitignored and
+excluded from the package, so an installed toolkit has no bundle to preview.
+
+This is worth knowing for the shipping decision, because it removes the
+objection to shape B. A prebuilt editor would keep live file detection. The
+cost is not "lose the watcher", it is: build at publish time, and re-home the
+middleware — already a standalone `(req, res, next)` mounted in two places —
+onto a plain `node:http` server, so nothing but Node is needed at runtime.
+`vite preview` alone would not buy much: it still loads `vite.config.ts`, which
+imports the React and Tailwind plugins, so the install stays.
+
+### What it serves, and the gap
+
+The editor still resolves strips relative to **itself** (`REPO_ROOT` in
+`strip_editor/vite-plugin-editor-api.ts`), so it lists the *toolkit's*
+`strips/`, not the work root's. Inside a checkout those are the same directory
+and it works; from anywhere else it does not. `editor start` prints the directory it is
+serving and warns when that directory is empty, so an installed editor with an
+empty file list reads as the known gap rather than as a project with no strips.
+
+The fix is the two-root split `render.mjs` and `check-schema.mjs` already went
+through — `/composer/**` from the toolkit, `/strips/**` from the work root, and
+`--strips-root` passed to the checker and renderer the plugin spawns. It is a
+separate piece of work; this command deliberately does not pretend to have done
+it.
 
 ## The `stub` agent
 

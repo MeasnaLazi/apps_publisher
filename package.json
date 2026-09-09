@@ -55,7 +55,7 @@
   },
   "scripts": {
     "test": "npm run test:cli && npm run test:composer",
-    "test:cli": "node cli/test/auth-hint.test.mjs && node cli/test/retarget.test.mjs && node cli/test/needs-input.test.mjs",
+    "test:cli": "node cli/test/auth-hint.test.mjs && node cli/test/retarget.test.mjs && node cli/test/needs-input.test.mjs && node cli/test/editor.test.mjs",
     "test:composer": "node composer/test/screen-geometry.test.mjs && node composer/test/inspect.test.mjs && node composer/test/check-schema.test.mjs && node composer/test/pick-frame.test.mjs && node composer/test/render-server.test.mjs",
     "check": "node bin/design-ss check --all",
     "prepublishOnly": "npm test && npm run check",
